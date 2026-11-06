@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1a1a1a">
+  <meta name="description" content="Crie um currículo profissional a partir de Markdown e exporte para PDF.">
+  <title>cv-md — currículo em Markdown</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="vendor/fonts/geist.css">
+  <link rel="stylesheet" href="vendor/codemirror/codemirror.min.css">
+  <link rel="stylesheet" href="vendor/codemirror/dracula.min.css">
+  <style>
+    :root {
+      color-scheme:dark;
+      --canvas:#1a1a1a;
+      --surface:#242424;
+      --elevated:#2b2b2b;
+      --sunken:#161616;
+      --line:#333333;
+      --line-soft:#2a2a2a;
+      --ink:#e8e8e8;
+      --ink-soft:#c9c9c9;
+      --muted:#a0a0a0;
+      --subtle:#858585;
+      --accent:#8b5cf6;
+      --accent-strong:#7c3aed;
+      --accent-hover:#6d28d9;
+      --danger:#f0a0a0;
+      --ok:#74a68e;
+      --warn:#d0a654;
+      --paper:#ffffff;
+      --paper-line:#e6eaec;
+      --paper-ink:#33444f;
+      --paper-muted:#6b7a84;
+      --radius:12px;
+      --shadow-paper:0 1px 2px rgb(16 24 32 / 8%),0 18px 44px rgb(16 24 32 / 14%);
+    }
+    * { box-sizing:border-box; }
+    html,body { min-height:100%; }
+    body { min-height:100vh; height:100vh; margin:0; overflow:hidden; display:flex; flex-direction:column; color:var(--ink); background:radial-gradient(1200px 800px at 50% -20%,#262626 0%,#1b1b1b 45%,#151515 100%) fixed; font-family:"Geist",ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-size:14px; -webkit-font-smoothing:antialiased; }
+    button,input,summary { font:inherit; }
+    button:focus-visible,summary:focus-visible,a:focus-visible { outline:2px solid #a78bfa; outline-offset:2px; box-shadow:0 0 0 5px rgb(139 92 246 / 16%); }
+    ::selection { background:rgb(139 92 246 / 32%); }
+
+    /* ---------- topo ---------- */
+    .topbar { position:relative; z-index:20; display:flex; align-items:center; justify-content:space-between; gap:14px; min-height:54px; padding:0 16px; border-bottom:1px solid var(--line-soft); background:rgb(34 34 34 / 82%); backdrop-filter:blur(14px) saturate(140%); -webkit-backdrop-filter:blur(14px) saturate(140%); }
+    .topbar::before { content:""; position:absolute; inset:0 0 auto; height:2px; pointer-events:none; background:linear-gradient(90deg,transparent,rgb(139 92 246 / 55%) 22%,#c4b5fd 50%,rgb(139 92 246 / 55%) 78%,transparent); opacity:.55; }
+    .brand,.topbar-actions,.save-indicator,.button { display:flex; align-items:center; }
+    .brand { min-width:0; gap:9px; color:inherit; text-decoration:none; }
+    .brand-mark { width:28px; height:28px; display:grid; place-items:center; border-radius:8px; background:linear-gradient(145deg,#a78bfa 0%,#7c3aed 55%,#6d28d9 100%); color:#fff; font-family:Georgia,serif; font-size:18px; font-weight:700; box-shadow:inset 0 1px 0 rgb(255 255 255 / 22%),0 6px 16px rgb(124 58 237 / 32%); }
+    .brand-name { font-size:14px; font-weight:700; letter-spacing:-.2px; }
+    .brand-caption { margin-left:2px; color:var(--muted); font-size:12px; }
+    .topbar-actions { gap:6px; }
+    .save-indicator { gap:6px; margin-right:4px; color:var(--muted); font-size:11px; white-space:nowrap; }
+    .save-dot { width:6px; height:6px; border-radius:50%; background:var(--ok); }
+    .save-indicator[data-state="saving"] .save-dot { background:var(--warn); }
+    .save-indicator[data-state="error"] .save-dot { background:#bd6464; }
+    .save-indicator[data-state="idle"] .save-dot { background:var(--subtle); }
+    .button { min-height:32px; justify-content:center; gap:6px; padding:0 11px; border:1px solid transparent; border-radius:7px; cursor:pointer; color:var(--ink-soft); background:transparent; font-size:12.5px; font-weight:600; transition:background .15s,border-color .15s; }
+    .button:hover { background:var(--elevated); }
+    .button.secondary { border-color:var(--line); background:var(--sunken); }
+    .button.secondary:hover { border-color:#4a4a4a; background:var(--elevated); }
+    .button.primary { color:#fff; background:linear-gradient(180deg,#8b5cf6,#7c3aed); box-shadow:inset 0 1px 0 rgb(255 255 255 / 20%),0 4px 14px rgb(124 58 237 / 22%); }
+    .button.primary:hover { background:linear-gradient(180deg,#7c3aed,#6d28d9); box-shadow:inset 0 1px 0 rgb(255 255 255 / 16%),0 6px 20px rgb(124 58 237 / 34%); }
+    .button:active { transform:translateY(1px); }
+    .button:disabled { cursor:not-allowed; opacity:.45; }
+    .icon-button { display:grid; width:34px; height:34px; place-items:center; border-radius:8px; color:var(--muted); background:transparent; text-decoration:none; }
+    .icon-button:hover { color:var(--ink); background:var(--elevated); }
+    .more-actions { position:relative; }
+    .more-actions>summary { width:34px; height:34px; display:grid; place-items:center; border-radius:7px; color:var(--muted); cursor:pointer; list-style:none; }
+    .more-actions>summary::-webkit-details-marker { display:none; }
+    .more-actions>summary:hover { color:var(--ink); background:var(--elevated); }
+    .more-actions>summary::before { content:"···"; margin-top:-9px; font-size:22px; letter-spacing:1px; }
+    .action-menu { position:absolute; top:calc(100% + 8px); right:0; z-index:40; width:230px; padding:5px; border:1px solid var(--line); border-radius:10px; background:#1d1d1d; box-shadow:0 18px 40px rgb(0 0 0 / 45%); }
+    .action-menu button { display:block; width:100%; padding:8px 10px; border:0; border-radius:6px; color:var(--ink-soft); background:transparent; cursor:pointer; text-align:left; font-size:12.5px; }
+    .action-menu button:hover { background:var(--elevated); color:var(--ink); }
+    .menu-separator { height:1px; margin:5px 4px; background:var(--line-soft); }
+
+    /* ---------- layout ---------- */
+    .app-shell { display:grid; grid-template-columns:minmax(300px,.4fr) minmax(480px,.6fr); gap:12px; width:min(1580px,100%); min-height:0; flex:1; margin:0 auto; padding:12px 16px; }
+    .panel { display:flex; min-width:0; min-height:0; flex-direction:column; overflow:hidden; border:1px solid rgb(255 255 255 / 6%); border-radius:14px; background:linear-gradient(180deg,#252525 0%,#202020 100%); box-shadow:inset 0 1px 0 rgb(255 255 255 / 4%); }
+    .panel-bar { display:flex; align-items:center; gap:10px; min-height:46px; padding:0 12px 0 14px; border-bottom:1px solid var(--line-soft); background:linear-gradient(180deg,rgb(255 255 255 / 2.5%),transparent); }
+    .panel-title { display:flex; align-items:center; margin:0; color:var(--ink); font-size:14px; font-weight:650; letter-spacing:-.1px; }
+    .panel-title::before { content:""; width:6px; height:6px; margin-right:8px; border-radius:50%; background:var(--accent); box-shadow:0 0 8px rgb(139 92 246 / 60%); }
+    .preview-actions { display:flex; min-width:0; align-items:center; gap:6px; margin-left:auto; }
+
+    /* ---------- editor ---------- */
+    .mode-switch { display:flex; gap:2px; margin-left:auto; padding:2px; border:1px solid var(--line); border-radius:7px; background:var(--sunken); }
+    .mode-button { min-height:24px; padding:0 9px; border:0; border-radius:5px; color:var(--muted); background:transparent; cursor:pointer; font-size:11px; font-weight:600; }
+    .mode-button[aria-pressed="true"] { color:var(--ink); background:var(--elevated); }
+    .mode-button:hover { color:var(--ink); }
+    .editor-tools { display:flex; align-items:center; gap:2px; min-height:38px; padding:4px 8px; border-bottom:1px solid var(--line-soft); }
+    .editor-tools .button { min-height:28px; padding:0 8px; color:var(--muted); font-size:12px; }
+    .editor-tools .button:hover { color:var(--ink); background:var(--elevated); }
+    .editor-host { position:relative; min-height:0; flex:1; background:#121212; }
+    .CodeMirror { height:100%; color:#e0e0e0; background:#121212; font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace; font-size:12.5px; line-height:1.65; }
+    .cm-s-dracula.CodeMirror { color:#e0e0e0!important; background:#121212!important; }
+    .CodeMirror-gutters { border-right:1px solid var(--line-soft); background:#121212!important; }
+    .CodeMirror-linenumber { color:var(--subtle)!important; }
+    .CodeMirror-cursor { border-left:1px solid var(--accent); }
+    .CodeMirror-selected { background:#353535 !important; }
+    .cm-s-dracula .cm-header { color:#d3d8db; font-weight:700; }
+    .cm-s-dracula .cm-variable-2 { color:#c7d2d9; }
+    .cm-s-dracula .cm-strong { color:#f2f5f6; font-weight:700; }
+    .cm-s-dracula .cm-link,.cm-s-dracula .cm-url { color:var(--accent); }
+    .cm-s-dracula .cm-comment { color:var(--subtle); }
+    .cm-s-dracula .cm-string,.cm-s-dracula .cm-string-2,.cm-s-dracula .cm-number,.cm-s-dracula .cm-atom,.cm-s-dracula .cm-keyword,.cm-s-dracula .cm-def,.cm-s-dracula .cm-variable,.cm-s-dracula .cm-variable-3,.cm-s-dracula .cm-property,.cm-s-dracula .cm-operator,.cm-s-dracula .cm-meta,.cm-s-dracula .cm-builtin { color:#c4cace; }
+    .cm-s-dracula .CodeMirror-line span[class*="cm-"] { color:#c4cace!important; }
+    .cm-s-dracula .CodeMirror-line .cm-header,.cm-s-dracula .CodeMirror-line .cm-strong { color:#eef1f2!important; font-weight:700; }
+    .cm-s-dracula .CodeMirror-line .cm-comment { color:var(--subtle)!important; }
+    .cm-s-dracula .CodeMirror-line .cm-link,.cm-s-dracula .CodeMirror-line .cm-url { text-decoration:underline; }
+    .editor-empty { position:absolute; inset:0; z-index:2; display:grid; place-content:center; padding:24px; background:rgb(18 18 18 / 97%); text-align:center; pointer-events:none; }
+    .editor-empty[hidden] { display:none; }
+    .empty-inner { max-width:300px; }
+    .empty-title { margin:0 0 6px; color:var(--ink); font-size:15px; font-weight:650; }
+    .empty-copy { margin:0 auto 15px; color:var(--muted); font-size:12px; line-height:1.6; }
+    .empty-actions { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; }
+    .editor-empty .button { pointer-events:auto; }
+    .editor-error { display:none; padding:9px 14px; border-top:1px solid #513538; color:var(--danger); background:#211719; font-size:12px; }
+    .editor-error[data-visible="true"] { display:block; }
+    .editor-footer { display:flex; min-height:34px; align-items:center; justify-content:space-between; gap:12px; padding:6px 12px; border-top:1px solid var(--line-soft); color:var(--muted); font-size:11px; }
+    .format-help { position:relative; }
+    .format-help>summary { cursor:pointer; color:var(--muted); list-style:none; }
+    .format-help>summary::-webkit-details-marker { display:none; }
+    .format-help>summary:hover { color:var(--accent); }
+    .format-popover { position:absolute; bottom:calc(100% + 10px); left:0; z-index:8; width:min(340px,80vw); padding:13px 15px; border:1px solid var(--line); border-radius:9px; background:#1d1d1d; box-shadow:0 16px 36px rgb(0 0 0 / 50%); color:var(--ink-soft); font-size:12px; line-height:1.6; }
+    .format-popover strong { color:var(--ink); }
+    .format-popover code { color:var(--accent); font-family:monospace; }
+
+    /* ---------- modo guiado ---------- */
+    .guided-host { display:flex; min-height:0; flex:1; flex-direction:column; gap:10px; overflow:auto; padding:12px; background:#121212; }
+    .guided-host[hidden] { display:none!important; }
+    .guided-intro { margin:0 2px 2px; color:var(--muted); font-size:11px; line-height:1.5; }
+    .guided-section { padding:12px; border:1px solid var(--line-soft); border-radius:8px; background:var(--sunken); }
+    .guided-section-head,.guided-item-head,.guided-actions { display:flex; align-items:center; gap:7px; }
+    .guided-section-head { margin-bottom:10px; }
+    .guided-section-title { min-width:0; flex:1; }
+    .guided-section-title label,.guided-field { display:grid; gap:5px; color:var(--muted); font-size:10px; font-weight:600; }
+    .guided-panel-title { margin:0 0 10px; color:var(--ink); font-size:13px; font-weight:650; }
+    .guided-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+    .guided-field { min-width:0; }
+    .guided-field input,.guided-field textarea,.guided-section-title input { width:100%; min-width:0; padding:8px 9px; border:1px solid var(--line); border-radius:6px; outline:none; color:var(--ink); background:#0e0e0e; font-family:inherit; font-size:12px; font-weight:400; }
+    .guided-field textarea { min-height:64px; resize:vertical; line-height:1.45; }
+    .guided-field input:focus,.guided-field textarea:focus,.guided-section-title input:focus { border-color:#6b6b6b; box-shadow:0 0 0 2px rgb(139 92 246 / 16%); }
+    .guided-section-body { display:grid; gap:10px; }
+    .guided-item { padding:10px; border:1px solid var(--line-soft); border-radius:7px; background:#101010; }
+    .guided-item-head { justify-content:space-between; margin-bottom:9px; color:var(--ink-soft); font-size:11px; font-weight:650; }
+    .guided-actions { flex:0 0 auto; }
+    .guided-small-button { min-width:28px; min-height:27px; padding:0 7px; border:1px solid var(--line); border-radius:5px; color:var(--ink-soft); background:var(--sunken); cursor:pointer; font-size:11px; }
+    .guided-small-button:hover:not(:disabled) { border-color:#5a5a5a; background:var(--elevated); }
+    .guided-small-button:disabled { opacity:.4; cursor:not-allowed; }
+    .guided-add { align-self:flex-start; min-height:30px; padding:0 10px; border:1px solid var(--line); border-radius:6px; color:var(--ink-soft); background:var(--sunken); cursor:pointer; font-size:11px; font-weight:600; }
+    .guided-add:hover { background:var(--elevated); }
+    .guided-empty { padding:16px 10px; border:1px dashed var(--line); border-radius:7px; color:var(--muted); text-align:center; font-size:11px; }
+
+    /* ---------- prévia ---------- */
+    .status-pill { display:inline-flex; min-height:26px; align-items:center; gap:6px; padding:0 9px; border:1px solid var(--line); border-radius:999px; background:linear-gradient(180deg,#1c1c1c,#141414); box-shadow:inset 0 1px 0 rgb(255 255 255 / 4%); color:var(--muted); font-size:11px; line-height:1; white-space:nowrap; }
+    .status-pill #pageCount { color:var(--ink-soft); font-variant-numeric:tabular-nums; }
+    .status-pill #pageCount.is-long { color:var(--warn); font-weight:600; }
+    .pill-divider { width:1px; height:10px; background:var(--line); }
+    .status-dot { width:6px; height:6px; flex:0 0 6px; border-radius:50%; background:var(--subtle); }
+    .status-pill[data-state="ready"] .status-dot { background:var(--ok); }
+    .status-pill[data-state="rendering"] .status-dot { background:var(--warn); }
+    .status-pill[data-state="error"] .status-dot { background:#bd6464; }
+    .spinner { width:11px; height:11px; flex:0 0 11px; border:1.5px solid var(--warn); border-top-color:transparent; border-radius:50%; animation:rotate .7s linear infinite; }
+    @keyframes rotate { to { transform:rotate(360deg); } }
+
+    .theme-picker { position:relative; }
+    .theme-picker>summary { display:flex; height:26px; align-items:center; gap:7px; padding:0 8px; border:1px solid var(--line); border-radius:7px; background:linear-gradient(180deg,#1c1c1c,#141414); box-shadow:inset 0 1px 0 rgb(255 255 255 / 4%); color:var(--ink-soft); cursor:pointer; list-style:none; font-size:11px; font-weight:600; white-space:nowrap; }
+    .theme-picker>summary::-webkit-details-marker { display:none; }
+    .theme-picker>summary:hover { border-color:#4a4a4a; }
+    .theme-picker[open]>summary { border-color:var(--accent); box-shadow:0 0 0 2px rgb(139 92 246 / 18%); }
+    .chevron { color:var(--subtle); font-size:9px; }
+    .theme-menu { position:absolute; top:calc(100% + 7px); right:0; z-index:40; width:268px; max-width:calc(100vw - 24px); padding:5px; border:1px solid var(--line); border-radius:10px; background:#1d1d1d; box-shadow:0 18px 44px rgb(0 0 0 / 50%); }
+    .theme-option { display:grid; width:100%; grid-template-columns:24px minmax(0,1fr) 14px; align-items:center; gap:9px; padding:7px 8px; border:0; border-radius:7px; color:var(--ink-soft); background:transparent; cursor:pointer; text-align:left; }
+    .theme-option:hover { background:var(--elevated); color:var(--ink); }
+    .theme-option[aria-checked="true"] { background:linear-gradient(90deg,rgb(139 92 246 / 20%),rgb(139 92 246 / 8%)); box-shadow:inset 2px 0 0 var(--accent); color:#fff; }
+    .theme-option strong { display:block; font-size:12px; font-weight:600; }
+    .theme-option small { display:block; margin-top:1px; color:var(--subtle); font-size:10px; }
+    .theme-option[aria-checked="true"] small { color:#c3b6f5; }
+    .theme-check { opacity:0; color:var(--accent); font-size:12px; text-align:center; }
+    .theme-option[aria-checked="true"] .theme-check { opacity:1; }
+    .theme-thumb { position:relative; display:block; width:20px; height:26px; overflow:hidden; border:1px solid var(--paper-line); border-radius:2px; background:var(--paper); }
+    .theme-thumb::before,.theme-thumb::after { position:absolute; display:block; content:""; }
+    .theme-thumb::before { top:4px; left:3px; width:12px; height:2px; border-radius:1px; background:var(--thumb-accent,#404040); }
+    .theme-thumb::after { top:8px; left:3px; width:14px; height:1px; background:#c6c6c6; box-shadow:0 3px 0 #dedede,0 8px 0 var(--thumb-accent,#404040),0 11px 0 #dedede,0 14px 0 #dedede; }
+    .thumb-classic { --thumb-accent:#222222; }
+    .thumb-modern { --thumb-accent:#333333; }
+    .thumb-minimal { --thumb-accent:#303030; }
+    .thumb-creative { --thumb-accent:#404040; }
+    .thumb-tech-dark { --thumb-accent:#363636; }
+    .thumb-modern::before { width:14px; height:4px; }
+    .thumb-minimal::before { width:13px; height:2px; }
+    .thumb-creative::before { width:13px; height:4px; }
+    .thumb-tech-dark::before { width:12px; border-radius:0; }
+
+    .zoom-controls { display:flex; align-items:center; gap:1px; padding:2px; border:1px solid var(--line); border-radius:7px; background:linear-gradient(180deg,#1c1c1c,#141414); box-shadow:inset 0 1px 0 rgb(255 255 255 / 4%); }
+    .zoom-controls button { min-width:24px; height:22px; padding:0 5px; border:0; border-radius:5px; color:var(--muted); background:transparent; cursor:pointer; font-size:11px; font-weight:600; }
+    .zoom-controls button:hover:not(:disabled) { color:var(--ink); background:var(--elevated); }
+    .zoom-controls button:disabled { opacity:.4; cursor:not-allowed; }
+    .zoom-controls .zoom-value { min-width:40px; color:var(--ink-soft); font-variant-numeric:tabular-nums; }
+
+    .preview-canvas { position:relative; min-height:0; flex:1; overflow:auto; padding:18px 14px 26px; background-color:#e8ecee; background-image:radial-gradient(900px 520px at 50% -8%,#f7f9fa 0%,rgb(247 249 250 / 0%) 70%),radial-gradient(#cfd6da .7px,transparent .7px); background-size:auto,14px 14px; scrollbar-width:thin; scrollbar-color:#bcc6cb transparent; }
+    .paper-stage { display:flex; justify-content:center; min-height:100%; }
+    .paper { position:relative; flex:0 0 auto; width:794px; overflow:hidden; border:1px solid rgb(15 23 30 / 7%); background:var(--paper); box-shadow:0 1px 2px rgb(16 24 32 / 10%),0 10px 22px rgb(16 24 32 / 7%),0 34px 70px rgb(16 24 32 / 14%); }
+    .paper iframe { position:absolute; inset:0 auto auto 0; width:794px; min-height:1123px; border:0; background:var(--paper); transform-origin:top left; }
+    .paper iframe.is-fading { animation:preview-fade .18s ease-out; }
+    @keyframes preview-fade { from { opacity:0; } to { opacity:1; } }
+    .preview-canvas::-webkit-scrollbar { width:10px; height:10px; }
+    .preview-canvas::-webkit-scrollbar-thumb { border:3px solid transparent; border-radius:999px; background:#bcc6cb; background-clip:content-box; }
+    .preview-canvas::-webkit-scrollbar-thumb:hover { background:#a4afb5; background-clip:content-box; }
+    .guided-host { scrollbar-width:thin; scrollbar-color:#3a3a3a transparent; }
+    .guided-host::-webkit-scrollbar { width:10px; }
+    .guided-host::-webkit-scrollbar-thumb { border:3px solid transparent; border-radius:999px; background:#3a3a3a; background-clip:content-box; }
+    .preview-empty { display:grid; min-height:230px; place-content:center; color:var(--paper-muted); text-align:center; font-size:12px; line-height:1.6; }
+    .preview-empty[hidden],.paper-stage[hidden] { display:none; }
+    .preview-empty strong { display:block; margin-bottom:4px; color:var(--paper-ink); font-size:13px; }
+
+    /* ---------- toast e diálogos ---------- */
+    .toast { position:fixed; z-index:50; right:20px; bottom:20px; border-left:2px solid var(--accent); max-width:min(420px,calc(100vw - 32px)); padding:10px 14px; border:1px solid var(--paper-line); border-radius:8px; color:var(--paper-ink); background:var(--paper); box-shadow:0 12px 34px rgb(24 40 50 / 18%); opacity:0; transform:translateY(6px); pointer-events:none; transition:opacity .18s,transform .18s; font-size:12.5px; }
+    .toast[data-visible="true"] { opacity:1; transform:translateY(0); }
+    dialog { width:min(460px,calc(100vw - 28px)); max-height:min(70vh,620px); padding:0; border:1px solid var(--paper-line); border-radius:var(--radius); color:var(--paper-ink); background:var(--paper); box-shadow:0 24px 70px rgb(20 35 45 / 22%); }
+    dialog::backdrop { background:rgb(12 18 22 / 46%); backdrop-filter:blur(2px); }
+    .dialog-head { display:flex; align-items:center; justify-content:space-between; padding:15px 18px; border-bottom:1px solid var(--paper-line); }
+    .dialog-head h2 { margin:0; font-size:15px; }
+    .dialog-close { width:30px; height:30px; border:0; border-radius:6px; color:var(--paper-muted); background:transparent; cursor:pointer; font-size:19px; }
+    .dialog-close:hover { background:#f1f4f5; }
+    .history-list { display:grid; gap:5px; overflow:auto; padding:12px; }
+    .history-entry { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:11px 12px; border:1px solid var(--paper-line); border-radius:8px; background:var(--paper); cursor:pointer; text-align:left; }
+    .history-entry:hover { border-color:#b9c9d2; background:#f8fafb; }
+    .history-entry strong { display:block; color:var(--paper-ink); font-size:12px; font-weight:600; }
+    .history-entry small { display:block; margin-top:3px; color:#8b969e; font-size:11px; }
+    .history-empty { padding:18px; color:#78858e; text-align:center; font-size:13px; }
+    dialog.design-dialog { width:min(920px,calc(100vw - 32px)); max-height:88vh; overflow:hidden; border-color:var(--line); background:#141414; color:var(--ink); }
+    dialog.design-dialog[open] { display:flex; flex-direction:column; }
+    dialog.design-dialog .dialog-head { border-bottom-color:var(--line-soft); background:linear-gradient(180deg,#1a1a1a,#141414); }
+    dialog.design-dialog .dialog-close { color:var(--muted); }
+    dialog.design-dialog .dialog-close:hover { background:var(--elevated); }
+    .design-dialog-title { margin:0; color:var(--ink); font-size:17px; font-weight:650; }
+    .design-content { min-height:0; flex:1 1 auto; overflow:auto; padding:18px 22px 24px; color:var(--ink-soft); }
+    .design-lead { margin:0; padding:12px 14px; border-left:2px solid var(--accent); border-radius:0 6px 6px 0; background:#101010; color:var(--ink-soft); font-size:13px; line-height:1.6; }
+    .design-caveat { margin:9px 0 0; color:var(--muted); font-size:12px; line-height:1.55; }
+    .design-section { margin-top:22px; }
+    .design-section h3 { margin:0 0 10px; color:var(--ink); font-size:14px; font-weight:650; }
+    .source-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+    .source-card { display:flex; min-width:0; flex-direction:column; gap:5px; padding:12px 13px; border:1px solid var(--line-soft); border-radius:8px; color:var(--ink-soft); background:#181818; text-decoration:none; }
+    .source-card:hover { border-color:#4a4a4a; background:var(--elevated); }
+    .source-org { color:var(--subtle); font-size:10px; font-weight:700; letter-spacing:.35px; text-transform:uppercase; }
+    .source-card strong { color:var(--ink); font-size:13px; }
+    .source-description { color:var(--muted); font-size:11px; line-height:1.5; }
+    .source-open { margin-top:auto; padding-top:4px; color:var(--ink-soft); font-size:10px; font-weight:600; }
+    .design-list { display:grid; gap:8px; margin:0; padding-left:20px; color:var(--ink-soft); font-size:12px; line-height:1.55; }
+    .design-list--spaced { margin-top:12px; }
+    .design-list strong { color:var(--ink); }
+    .design-order { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:0; padding:0; list-style:none; }
+    .design-order li { padding:7px 9px; border:1px solid var(--line-soft); border-radius:6px; color:var(--ink-soft); background:#181818; font-size:11px; }
+    .design-order li:not(:last-child)::after { content:"→"; margin-left:10px; color:var(--subtle); }
+    .design-theme-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+    .design-theme-card { padding:12px 13px; border:1px solid var(--line-soft); border-radius:8px; background:#181818; }
+    .design-theme-card h4 { margin:0; color:var(--ink); font-size:13px; }
+    .design-theme-meta { margin:4px 0 9px; color:var(--muted); font-size:11px; line-height:1.45; }
+    .design-theme-reason { margin:0 0 10px; color:var(--ink-soft); font-size:11px; line-height:1.5; }
+    .palette-row { display:grid; gap:5px; }
+    .palette-item { display:grid; grid-template-columns:15px 1fr auto; align-items:center; gap:7px; color:var(--muted); font-size:10px; }
+    .palette-swatch { width:13px; height:13px; border:1px solid #5a5a5a; border-radius:3px; }
+    .palette-item code { color:var(--subtle); font-size:10px; }
+    .design-footnote { margin:9px 0 0; color:var(--subtle); font-size:11px; line-height:1.5; }
+    .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; clip-path:inset(50%); }
+    .noscript { position:fixed; inset:0; z-index:100; display:grid; place-content:center; padding:24px; background:var(--canvas); }
+    .noscript-card { max-width:430px; padding:24px; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); text-align:center; }
+    .noscript-card h1 { margin:0 0 8px; color:var(--ink); font-size:18px; }
+    .noscript-card p { margin:0; color:var(--muted); font-size:13px; line-height:1.6; }
+
+    /* ---------- responsivo ---------- */
+    @media (max-width:1120px) {
+      body { height:auto; min-height:100vh; overflow:auto; }
+      .topbar { position:sticky; top:0; }
+      .app-shell { grid-template-columns:1fr; gap:12px; flex:none; }
+      .editor-panel { height:54vh; min-height:410px; }
+      .preview-panel { height:78vh; min-height:650px; }
+    }
+    @media (max-width:900px) {
+      .topbar { min-height:56px; padding:0 14px; }
+      .brand-caption,.save-indicator { display:none; }
+      .app-shell { display:flex; flex-direction:column; padding:12px; }
+      .editor-panel { height:64vh; min-height:460px; }
+      .preview-panel { height:82vh; min-height:650px; }
+    }
+    @media (max-width:760px) {
+      .preview-panel .panel-bar { flex-wrap:wrap; gap:7px; padding:8px 10px; }
+      .preview-actions { width:100%; justify-content:space-between; }
+    }
+    @media (max-width:540px) {
+      .topbar { gap:6px; padding:0 10px; }
+      .brand { gap:7px; }
+      .brand-mark { width:26px; height:26px; font-size:17px; }
+      .brand-name { font-size:12px; }
+      .topbar-actions { gap:2px; }
+      .topbar-actions>.button { min-height:32px; padding:0 8px; font-size:11px; }
+      .more-actions>summary,.icon-button { width:32px; height:32px; }
+      .app-shell { gap:10px; padding:10px 10px 14px; }
+      .panel-bar { min-height:44px; padding:0 10px; }
+      .panel-title { font-size:13px; }
+      .editor-tools { padding:4px 6px; }
+      .editor-footer { flex-wrap:wrap; padding:6px 10px; font-size:10px; }
+      .preview-canvas { padding:12px 8px 18px; }
+      .editor-panel { height:68vh; }
+      .preview-panel { height:78vh; }
+      .status-pill { gap:5px; padding:0 7px; font-size:10px; }
+      .status-pill #renderText { display:none; }
+      .pill-divider { display:none; }
+      .theme-picker>summary { padding:0 6px; font-size:10px; }
+      .theme-picker>summary .theme-thumb { display:none; }
+      .zoom-controls .zoom-value { min-width:34px; }
+    }
+    @media (max-width:680px) {
+      .design-content { padding:14px; }
+      .source-grid,.design-theme-grid { grid-template-columns:1fr; }
+      .design-order { align-items:flex-start; flex-direction:column; }
+      .design-order li:not(:last-child)::after { content:"↓"; }
+      .guided-grid { grid-template-columns:1fr; }
+    }
+    @media (prefers-reduced-motion:reduce) {
+      *,*::before,*::after { animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; }
+    }
+  </style>
+</head>
+<body>
+  <noscript><div class="noscript"><div class="noscript-card"><h1>JavaScript é necessário</h1><p>O cv-md monta a prévia e os arquivos no seu próprio navegador. Ative o JavaScript para usar o editor. Nenhum dado do currículo é enviado para servidores.</p></div></div></noscript>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="cv-md — início"><span class="brand-mark" aria-hidden="true">cv</span><span class="brand-name">cv-md</span><span class="brand-caption">Do Markdown ao PDF.</span></a>
+    <div class="topbar-actions">
+      <span class="save-indicator" id="saveIndicator" data-state="saved" aria-live="polite"><span class="save-dot"></span><span id="saveText">Rascunho neste navegador</span></span>
+      <input class="sr-only" type="file" id="fileInput" accept=".md,.markdown,.txt">
+      <button class="button" type="button" id="openFile">Abrir .md</button>
+      <button class="button primary" type="button" id="downloadPdf">Baixar PDF</button>
+      <details class="more-actions" id="moreActions">
+        <summary aria-label="Mais opções" title="Mais opções"></summary>
+        <div class="action-menu">
+          <button type="button" id="saveVersion">Salvar versão</button>
+          <button type="button" id="openHistory">Histórico de versões</button>
+          <div class="menu-separator"></div>
+          <button type="button" id="downloadHtml">Baixar HTML</button>
+          <button type="button" id="downloadJson">Baixar JSON Resume</button>
+          <button type="button" id="downloadDocx">Baixar Word (.docx)</button>
+          <button type="button" id="downloadZip">Baixar os 5 temas (.zip)</button>
+          <button type="button" id="downloadMd">Baixar Markdown (.md)</button>
+          <div class="menu-separator"></div>
+          <button type="button" id="openDesignDialog">Critérios e fontes</button>
+        </div>
+      </details>
+      <a class="icon-button" href="https://github.com/conradomr" target="_blank" rel="noopener noreferrer" aria-label="GitHub de conradomr" title="GitHub de conradomr">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <section class="panel editor-panel" aria-labelledby="editorTitle">
+      <div class="panel-bar">
+        <h1 class="panel-title" id="editorTitle">Editar</h1>
+        <div class="mode-switch" role="group" aria-label="Modo de edição">
+          <button class="mode-button" type="button" id="modeMarkdown" aria-pressed="true">Markdown</button>
+          <button class="mode-button" type="button" id="modeGuided" aria-pressed="false">Guiado</button>
+        </div>
+      </div>
+      <div class="editor-tools">
+        <button class="button" type="button" id="loadExample">Carregar exemplo</button>
+        <button class="button" type="button" id="clearDraft">Limpar</button>
+      </div>
+      <div class="editor-host" id="editorHost">
+        <textarea id="markdown" aria-label="Conteúdo do currículo em Markdown" spellcheck="false"></textarea>
+        <div class="editor-empty" id="editorEmpty">
+          <div class="empty-inner">
+            <p class="empty-title">Comece pelo seu conteúdo</p>
+            <p class="empty-copy">Cole seu Markdown, abra um arquivo .md ou carregue o exemplo para conhecer o formato.</p>
+            <div class="empty-actions">
+              <button class="button secondary" type="button" id="emptyOpenFile">Abrir .md</button>
+              <button class="button primary" type="button" id="emptyExample">Carregar exemplo</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="guided-host" id="guidedHost" hidden></div>
+      <div class="editor-error" id="editorError" role="alert" aria-live="polite"></div>
+      <div class="editor-footer"><details class="format-help"><summary>Como formatar o CV</summary><div class="format-popover"><strong>Use títulos para organizar:</strong><br><code>## Experiência</code> cria uma seção;<br><code>### Cargo — Empresa (2022–atual)</code> cria uma experiência;<br><code>- Resultado com impacto</code> cria um tópico.<br><br>O nome e os contatos ficam no início, entre linhas <code>---</code>.<br><br><strong>Dica:</strong> destaque resultados concretos e adapte o currículo à vaga.</div></details><span>Tudo no navegador</span></div>
+    </section>
+
+    <section class="panel preview-panel" aria-labelledby="previewTitle">
+      <div class="panel-bar">
+        <h2 class="panel-title" id="previewTitle">Prévia</h2>
+        <div class="preview-actions">
+          <span class="status-pill" id="renderStatus" data-state="idle" aria-live="polite">
+            <span class="status-dot"></span>
+            <span id="renderText">Aguardando</span>
+            <span class="pill-divider" aria-hidden="true"></span>
+            <span id="pageCount">—</span>
+          </span>
+          <details class="theme-picker" id="themePicker">
+            <summary id="themeTrigger" aria-label="Escolher tema">
+              <span class="theme-thumb thumb-classic" id="themeTriggerThumb" aria-hidden="true"></span>
+              <span id="themeTriggerName">Clássico</span>
+              <span class="chevron" aria-hidden="true">▾</span>
+            </summary>
+            <div class="theme-menu" id="themeMenu" role="radiogroup" aria-label="Temas de currículo"></div>
+          </details>
+          <div class="zoom-controls" role="group" aria-label="Zoom da prévia">
+            <button type="button" id="zoomOut" aria-label="Diminuir zoom" title="Diminuir zoom" disabled>−</button>
+            <button type="button" id="zoomFit" class="zoom-value" title="Alternar entre ajustar e 100%" disabled>96%</button>
+            <button type="button" id="zoomIn" aria-label="Aumentar zoom" title="Aumentar zoom" disabled>+</button>
+          </div>
+        </div>
+      </div>
+      <div class="preview-canvas" id="previewCanvas">
+        <div class="preview-empty" id="previewEmpty"><div><strong>A prévia aparece aqui</strong>Digite ou carregue um CV para ver o resultado.</div></div>
+        <div class="paper-stage" id="paperStage" hidden><div class="paper" id="paper"><iframe id="previewFrame" title="Prévia do currículo em tamanho A4" sandbox="allow-same-origin"></iframe></div></div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="historyDialog" aria-labelledby="historyTitle"><div class="dialog-head"><h2 id="historyTitle">Versões salvas</h2><button class="dialog-close" type="button" id="closeHistory" aria-label="Fechar">×</button></div><div class="history-list" id="historyList"></div></dialog>
+  <dialog class="design-dialog" id="designDialog" aria-labelledby="designDialogTitle" aria-describedby="designLead">
+    <div class="dialog-head">
+      <div><h2 class="design-dialog-title" id="designDialogTitle">Fontes e decisões de design</h2></div>
+      <button class="dialog-close" type="button" id="closeDesignDialog" aria-label="Fechar documentação">×</button>
+    </div>
+    <div class="design-content">
+      <p class="design-lead" id="designLead">Os temas foram desenhados para que recrutadores e sistemas de candidatura encontrem as informações em uma sequência clara. Aqui estão os critérios, escolhas visuais e fontes que orientaram cada modelo.</p>
+      <p class="design-caveat">As referências consultadas favorecem formatos simples para currículos enviados por plataformas. Os modelos seguem essa orientação com uma coluna, fontes comuns e tons neutros; o Editorial oferece uma alternativa tipográfica para áreas que valorizam esse estilo.</p>
+
+      <section class="design-section" aria-labelledby="designSourcesTitle">
+        <h3 id="designSourcesTitle">Fontes de referência</h3>
+        <div class="source-grid">
+          <a class="source-card" href="https://career.berkeley.edu/prepare-for-success/resumes" target="_blank" rel="noopener noreferrer">
+            <span class="source-org">UC Berkeley · Career Engagement</span><strong>Resumes</strong>
+            <span class="source-description">Orientações sobre texto de 10–11 pt, margens, seções familiares, adaptação à vaga e apresentação simples para candidaturas online.</span>
+            <span class="source-open">Abrir a referência ↗</span>
+          </a>
+          <a class="source-card" href="https://capd.mit.edu/resources/make-your-resume-ats-friendly/" target="_blank" rel="noopener noreferrer">
+            <span class="source-org">MIT · Career Advising &amp; Professional Development</span><strong>Make your resume ATS-friendly</strong>
+            <span class="source-description">Orientações sobre fontes comuns, corpo de 10 pt ou mais e organização do conteúdo para leitura automatizada.</span>
+            <span class="source-open">Abrir a referência ↗</span>
+          </a>
+          <a class="source-card" href="https://capd.mit.edu/resources/resumes/" target="_blank" rel="noopener noreferrer">
+            <span class="source-org">MIT · Career Advising &amp; Professional Development</span><strong>Resumes</strong>
+            <span class="source-description">Incentiva formato familiar e consistente, fonte conservadora de pelo menos 10 pt, margens de meia polegada ou mais, conteúdo específico e resultados quantificados.</span>
+            <span class="source-open">Abrir a referência ↗</span>
+          </a>
+          <a class="source-card" href="https://support.greenhouse.io/hc/en-us/articles/200989175-Unsuccessful-resume-parse" target="_blank" rel="noopener noreferrer">
+            <span class="source-org">Greenhouse · Support</span><strong>Resume parsing · formatting guidance</strong>
+            <span class="source-description">Documentação técnica do fornecedor sobre como a estrutura do currículo influencia a identificação de contatos, cargos, empresas e datas.</span>
+            <span class="source-open">Abrir a referência ↗</span>
+          </a>
+        </div>
+        <p class="design-footnote">Referências consultadas em 4 de novembro de 2026. As orientações de cada vaga e do sistema usado pelo empregador têm prioridade.</p>
+      </section>
+
+      <section class="design-section" aria-labelledby="designRulesTitle">
+        <h3 id="designRulesTitle">Estrutura e ordem nos PDFs</h3>
+        <ol class="design-order" aria-label="Ordem do cabeçalho do currículo">
+          <li>Nome</li><li>Área ou cargo</li><li>Contato</li><li>Resumo opcional</li><li>Seções do Markdown</li>
+        </ol>
+        <ul class="design-list design-list--spaced">
+          <li>Uma coluna; texto e listas reais no PDF, sem tabelas, barras laterais, caixas de texto, gráficos, fotos, logotipos ou ícones que substituam palavras.</li>
+          <li>O nome e os contatos ficam no fluxo normal da página, não em cabeçalhos ou rodapés de impressão. Links de contato também mostram o endereço em texto.</li>
+          <li>As seções são impressas na ordem do Markdown. Para experiência, o padrão recomendado é mais recente primeiro; cada item segue <code>Cargo — Empresa (período)</code>, depois os tópicos de resultado.</li>
+          <li>Papel A4 branco; texto de corpo e metadados a partir de 10 pt; fontes comuns (Arial; Georgia no Editorial); margens internas de 13–18 mm, aproximadamente 0,5–0,7 pol.</li>
+          <li>As cores são apenas tons neutros de alto contraste; nenhuma informação depende da cor. A interface do site é escura, mas não é impressa no currículo.</li>
+          <li>Não impomos uma página: experiências adicionais fluem para páginas seguintes sem reduzir a fonte. O PDF permanece selecionável e pesquisável.</li>
+          <li>A exportação Word usa uma versão neutra de uma coluna, com Arial e a mesma ordem de conteúdo; o tema escolhido define o visual de PDF e HTML.</li>
+        </ul>
+      </section>
+
+      <section class="design-section" aria-labelledby="designThemesTitle">
+        <h3 id="designThemesTitle">Tipografia, margens e paleta de cada tema</h3>
+        <div class="design-theme-grid" id="designThemeGrid"></div>
+        <p class="design-footnote">As miniaturas do seletor são desenhos da interface; não fazem parte dos PDFs. Nenhum tema insere foto ou outra imagem. O campo <code>photo</code> é rejeitado para evitar que uma foto pareça ter sido incluída quando não será exportada.</p>
+      </section>
+
+      <section class="design-section" aria-labelledby="designLimitsTitle">
+        <h3 id="designLimitsTitle">Como aproveitar melhor os temas</h3>
+        <ul class="design-list">
+          <li>Para um visual mais tradicional, escolha Clássico; para uma apresentação contemporânea, Moderno; para bastante conteúdo, Compacto; para comunicação e design, Editorial; para áreas técnicas, Técnico.</li>
+          <li>Confira o formato de arquivo indicado pela vaga. O aplicativo oferece PDF, Word (.docx), HTML e JSON Resume; o Markdown (.md) fica como cópia editável do conteúdo.</li>
+          <li>Personalize a ordem das seções e os termos do currículo para destacar a experiência mais relevante para cada oportunidade.</li>
+          <li>Plataformas de candidatura podem ter instruções próprias; use os requisitos do empregador como referência final.</li>
+        </ul>
+      </section>
+    </div>
+  </dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="vendor/codemirror/codemirror.min.js"></script>
+  <script src="vendor/codemirror/markdown.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
